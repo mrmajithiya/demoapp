@@ -1,0 +1,640 @@
+------------ node server.js -------------
+
+  const express = require('express');
+const cors = require('cors');
+const { Pool } = require('pg');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+
+const pool = new Pool({
+  user: 'postgres',
+  host: 'localhost',
+  database: 'demo',
+  password: 'Admin@123',
+  port: 5432,
+});
+
+// const initDb = async () => {
+//   try {
+//     await pool.query(`DROP TABLE IF EXISTS reviews, projects, developers CASCADE;`);
+
+//     await pool.query(`
+//       CREATE TABLE developers (
+//         id SERIAL PRIMARY KEY,
+//         name VARCHAR(100),
+//         role VARCHAR(100),
+//         experience VARCHAR(50),
+//         skills TEXT[],
+//         bio TEXT,
+//         rating NUMERIC,
+//         followers INT,
+//         following INT
+//       );
+
+//       CREATE TABLE projects (
+//         id SERIAL PRIMARY KEY,
+//         developer_id INT REFERENCES developers(id) ON DELETE CASCADE,
+//         title VARCHAR(100),
+//         tech VARCHAR(100),
+//         "desc" TEXT
+//       );
+
+//       CREATE TABLE reviews (
+//         id SERIAL PRIMARY KEY,
+//         developer_id INT REFERENCES developers(id) ON DELETE CASCADE,
+//         reviewer VARCHAR(100),
+//         rating INT,
+//         comment TEXT,
+//         date VARCHAR(50)
+//       );
+//     `);
+
+//     const res1 = await pool.query(`
+//       INSERT INTO developers (name, role, experience, skills, bio, rating, followers, following) VALUES 
+//       ('Alice Johnson', 'Backend Engineer', '5 years', ARRAY['PostgreSQL', 'Node.js', 'Python'], 'Specializes in scaling PostgreSQL databases and optimizing complex queries.', 4.8, 1200, 245)
+//       RETURNING id;
+//     `);
+//     const dev1Id = res1.rows[0].id;
+
+//     await pool.query(`
+//       INSERT INTO projects (developer_id, title, tech, "desc") VALUES 
+//       ($1, 'E-Commerce Mobile App', 'React Native, Node.js, Stripe', 'A full-stack shopping app with real-time inventory.'),
+//       ($1, 'Fintech Dashboard', 'React, PostgreSQL, GraphQL', 'Real-time financial analytics dashboard for banking clients.')
+//     `, [dev1Id]);
+
+//     await pool.query(`
+//       INSERT INTO reviews (developer_id, reviewer, rating, comment, date) VALUES 
+//       ($1, 'John Doe', 5, 'Amazing work, delivered ahead of schedule and with perfect code quality!', 'Oct 12, 2025'),
+//       ($1, 'Sarah Lee', 4, 'Great communication and solid architecture choices. Will hire again.', 'Sep 28, 2025')
+//     `, [dev1Id]);
+
+//     const res2 = await pool.query(`
+//       INSERT INTO developers (name, role, experience, skills, bio, rating, followers, following) VALUES 
+//       ('Bob Smith', 'Full Stack Developer', '3 years', ARRAY['React Native', 'TypeScript', 'PostgreSQL'], 'Loves building mobile apps and connecting them to robust backend APIs.', 4.2, 530, 110)
+//       RETURNING id;
+//     `);
+
+//     await pool.query(`
+//       INSERT INTO projects (developer_id, title, tech, "desc") VALUES 
+//       ($1, 'Social Media App', 'React Native, Firebase', 'A real-time chat application.')
+//     `, [res2.rows[0].id]);
+
+//     console.log('Database dynamically seeded with developers, projects, and reviews.');
+//   } catch (err) {
+//     console.error('Error initializing DB:', err);
+//   }
+// };
+
+// initDb();
+
+app.get('/api/developers', async (req, res) => {
+  const result = await pool.query('SELECT * FROM developers ORDER BY id');
+  res.json(result.rows);
+  console.log(result.rows);
+});
+
+app.post('/api/developers', async (req, res) => {
+  const {
+    name,
+    role,
+    experience,
+    skills,
+    bio,
+    rating,
+    followers,
+    following
+  } = req.body;
+
+  const result = await pool.query(
+    `INSERT INTO developers 
+      (name, role, experience, skills, bio, rating, followers, following)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *`,
+    [name, role, experience, skills, bio, rating, followers, following]
+  );
+
+  res.status(201).json(result.rows[0]);
+  console.log(result.rows[0]);
+});
+
+app.get('/api/developers/:id', async (req, res) => {
+  const { id } = req.params;
+  const devRes = await pool.query('SELECT * FROM developers WHERE id = $1', [id]);
+
+  const dev = devRes.rows[0];
+
+  const projRes = await pool.query('SELECT * FROM projects WHERE developer_id = $1', [id]);
+  dev.projects = projRes.rows;
+
+  // const revRes = await pool.query('SELECT * FROM reviews WHERE developer_id = $1', [id]);
+  // dev.reviews = revRes.rows;
+
+  res.json(dev);
+  console.log(dev);
+
+});
+
+app.post('/api/projects', async (req, res) => {
+  const { developer_id, title, tech, description } = req.body;
+
+  const result = await pool.query(
+    `INSERT INTO projects (developer_id, title, tech, description)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [developer_id, title, tech, description]
+  );
+
+  res.json(result.rows[0]);
+});
+
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
+});
+
+---------------------- AppNavigator.tsx -----------------------
+
+  
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import HomeScreen from '../screens/HomeScreen';
+import DeveloperDetailScreen from '../screens/DeveloperDetailScreen';
+
+export type Developer = {
+    id: string;
+    name: string;
+    role: string;
+    experience: string;
+    skills: string[];
+    bio: string;
+};
+
+export type RootStackParamList = {
+    Home: undefined;
+    DeveloperDetail: { developer: Developer };
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const AppNavigator = () => {
+    return (
+        <NavigationContainer>
+            <Stack.Navigator
+                initialRouteName='Home'
+                screenOptions={{ headerShown: false }}>
+
+                <Stack.Screen name="Home" component={HomeScreen} />
+                <Stack.Screen name="DeveloperDetail" component={DeveloperDetailScreen} />
+
+            </Stack.Navigator>
+        </NavigationContainer>
+    );
+};
+
+export default AppNavigator;
+
+---------------------- HomeScreen.tsx ------------------------
+
+  import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    StyleSheet,
+    useColorScheme,
+    FlatList,
+    Platform,
+} from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList, Developer } from '../navigation/AppNavigator';
+
+type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
+
+type Props = {
+    navigation: HomeScreenNavigationProp;
+};
+
+const HomeScreen: React.FC<Props> = ({ navigation }) => {
+    const isDarkMode = useColorScheme() === 'dark';
+
+    const [developers, setDevelopers] = useState<Developer[]>([]);
+
+    const fetchDevelopers = () => {
+        fetch('http://192.168.1.25:3000/api/developers')
+            .then(res => res.json())
+            .then(data => setDevelopers(data))
+            .catch(error => console.error("Error fetching data:", error));
+    };
+
+    useEffect(() => {
+        fetchDevelopers();
+    }, []);
+
+    const styles = StyleSheet.create({
+        container: {
+            flex: 1,
+            backgroundColor: isDarkMode ? '#121212' : '#f8f9fa',
+            padding: 20,
+        },
+        title: {
+            fontSize: 28,
+            fontWeight: 'bold',
+            color: isDarkMode ? '#ffffff' : '#1a1a1a',
+            marginBottom: 20,
+            marginTop: 40,
+        },
+        card: {
+            backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+        },
+        devName: {
+            fontSize: 18,
+            fontWeight: 'bold',
+            color: isDarkMode ? '#ffffff' : '#1a1a1a',
+        },
+        devRole: {
+            fontSize: 14,
+            color: '#007AFF',
+            marginTop: 4,
+        }
+    });
+
+    const renderDeveloper = ({ item }: { item: Developer }) => (
+        <TouchableOpacity
+            style={styles.card}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('DeveloperDetail', { developer: item })}
+        >
+            <Text style={styles.devName}>{item.name}</Text>
+            <Text style={styles.devRole}>{item.role}</Text>
+        </TouchableOpacity>
+    );
+
+    return (
+        <View style={styles.container}>
+            <Text style={styles.title}>Developers</Text>
+
+            <FlatList
+                data={developers}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderDeveloper}
+            />
+        </View>
+    );
+};
+
+export default HomeScreen;
+
+--------------------------- detailsScreen.tsx -------------------------
+
+  import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    Image,
+    ScrollView,
+    TouchableOpacity,
+    useColorScheme,
+    FlatList,
+    SafeAreaView,
+    ActivityIndicator
+} from 'react-native';
+import { RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../navigation/AppNavigator';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type DeveloperDetailScreenRouteProp = RouteProp<RootStackParamList, 'DeveloperDetail'>;
+type DeveloperDetailScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'DeveloperDetail'>;
+
+type Props = {
+    route: DeveloperDetailScreenRouteProp;
+    navigation: DeveloperDetailScreenNavigationProp;
+};
+
+const RatingStars = ({ rating }: { rating: number }) => {
+    return (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {[1, 2, 3, 4, 5].map((star) => (
+                <Text key={star} style={{ color: star <= rating ? '#FFD700' : '#E0E0E0', fontSize: 18 }}>★</Text>
+            ))}
+        </View>
+    );
+};
+
+const ProjectCard = ({ project, isDark }: any) => (
+    <View style={[styles.card, { backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF' }]}>
+        <Text style={[styles.cardTitle, { color: isDark ? '#FFF' : '#111' }]}>{project.title}</Text>
+        <Text style={styles.cardTech}>{project.tech}</Text>
+        <Text style={[styles.cardDesc, { color: isDark ? '#CCC' : '#666' }]}>{project.desc}</Text>
+    </View>
+);
+
+
+
+const DeveloperDetailScreen: React.FC<Props> = ({ route, navigation }) => {
+    const isDarkMode = useColorScheme() === 'dark';
+    const { developer } = route.params;
+
+    const [fullDev, setFullDev] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const API_URL = 'http://192.168.1.25:3000';
+        fetch(`${API_URL}/api/developers/${developer.id}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Server error');
+                return res.json();
+            })
+            .then(data => {
+                setFullDev(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error('Error fetching data:', err);
+                setLoading(false);
+            });
+    }, [developer.id]);
+
+    const dynamicStyles = {
+        container: { backgroundColor: isDarkMode ? '#121212' : '#F8F9FA' },
+        text: { color: isDarkMode ? '#FFFFFF' : '#1A1A1A' },
+        subText: { color: isDarkMode ? '#AAAAAA' : '#666666' },
+        cardBg: { backgroundColor: isDarkMode ? '#1E1E1E' : '#FFFFFF' },
+        chipBg: { backgroundColor: isDarkMode ? '#333333' : '#EEF2F5' },
+        border: { borderColor: isDarkMode ? '#333333' : '#EAEAEA' }
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={[styles.container, dynamicStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color="#007AFF" />
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <SafeAreaView style={[styles.container, dynamicStyles.container]}>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+
+                <View style={styles.profileHeader}>
+                    <Image
+                        source={{ uri: `https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8bWVufGVufDB8fDB8fHww'}` }}
+                        style={styles.avatar}
+                    />
+                    <Text style={[styles.name, dynamicStyles.text]}>{fullDev.name}</Text>
+                    <Text style={styles.username}>@{fullDev.name.replace(/\s+/g, '').toLowerCase()}</Text>
+                    <View style={styles.locationRow}>
+                        <Text style={dynamicStyles.subText}>📍 San Francisco, CA  •  🗓 Joined 2021</Text>
+                    </View>
+                </View>
+
+                <View style={[styles.ratingSection, dynamicStyles.cardBg]}>
+                    <Text style={styles.ratingNumber}>{fullDev.rating || '0.0'}</Text>
+                    <View style={styles.ratingDetails}>
+                        <RatingStars rating={Math.round(fullDev.rating || 0)} />
+                        <Text style={dynamicStyles.subText}>Based on {fullDev.reviews?.length || 0} reviews</Text>
+                    </View>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, dynamicStyles.text]}>About</Text>
+                    <Text style={[styles.bioText, dynamicStyles.subText]}>{fullDev.bio}</Text>
+                </View>
+
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, dynamicStyles.text]}>Skills & Expertise</Text>
+                    <View style={styles.skillsWrapper}>
+                        {fullDev.skills && fullDev.skills.map((skill: string, index: number) => (
+                            <View key={index} style={[styles.skillChip, dynamicStyles.chipBg]}>
+                                <Text style={[styles.skillText, dynamicStyles.text]}>{skill}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {fullDev.projects && fullDev.projects.length > 0 && (
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, dynamicStyles.text]}>Recent Projects</Text>
+                        <FlatList
+                            data={fullDev.projects}
+                            keyExtractor={item => item.id.toString()}
+                            renderItem={({ item }) => <ProjectCard project={item} isDark={isDarkMode} />}
+                            scrollEnabled={false}
+                        />
+                    </View>
+                )}
+
+            </ScrollView>
+        </SafeAreaView>
+    );
+};
+
+const styles = StyleSheet.create({
+    container:
+    {
+        // flex: 1
+    },
+    navHeader:
+    {
+        // flexDirection: 'row',
+        // justifyContent: 'space-between',
+        // paddingHorizontal: 20,
+        // paddingTop: 10,
+        // paddingBottom: 15,
+        // borderBottomWidth: 1,
+    },
+    backButton:
+    {
+        // padding: 4
+    },
+    scrollContent:
+    {
+        // paddingHorizontal: 20,
+        // paddingBottom: 60
+    },
+
+    profileHeader:
+    {
+        // alignItems: 'center',
+        // marginTop: 20
+    },
+    avatar:
+    {
+        width: 110,
+        height: 110,
+        borderRadius: 55,
+        marginBottom: 16
+    },
+    name:
+    {
+        // fontSize: 26,
+        // fontWeight: 'bold'
+    },
+    username:
+    {
+        // fontSize: 16,
+        // color: '#007AFF',
+        // marginTop: 4,
+        // fontWeight: '600'
+    },
+    locationRow:
+    {
+        // marginTop: 10
+    },
+
+    ratingSection:
+    {
+        // flexDirection: 'row',
+        // alignItems: 'center',
+        // justifyContent: 'center',
+        // marginTop: 24,
+        // padding: 20,
+        // borderRadius: 16
+    },
+    ratingNumber:
+    {
+        // fontSize: 40,
+        // fontWeight: 'bold',
+        // color: '#FFD700',
+        // marginRight: 16
+    },
+    ratingDetails:
+    {
+        // justifyContent: 'center'
+    },
+
+    statsRow:
+    {
+        // flexDirection: 'row',
+        // justifyContent: 'space-between',
+        // marginTop: 16
+    },
+    statBox:
+    {
+        // flex: 1,
+        // alignItems: 'center',
+        // padding: 16,
+        // borderRadius: 16,
+        // marginHorizontal: 4
+    },
+    statValue:
+    {
+        // fontSize: 22,
+        // fontWeight: 'bold'
+    },
+
+    actionRow:
+    {
+        // flexDirection: 'row',
+        // marginTop: 24,
+        // gap: 12
+    },
+    actionBtn:
+    {
+        // flex: 1,
+        // paddingVertical: 14,
+        // borderRadius: 12,
+        // alignItems: 'center',
+        // flexDirection: 'row',
+        // justifyContent: 'center'
+    },
+    primaryBtn:
+    {
+        // backgroundColor: '#007AFF'
+    },
+    primaryBtnText:
+    {
+        // color: '#FFF',
+        // fontWeight: 'bold',
+        // fontSize: 16
+    },
+    secondaryBtn:
+    {
+        // backgroundColor: 'transparent',
+        // borderWidth: 1
+    },
+    secondaryBtnText:
+    {
+        // fontWeight: 'bold',
+        // fontSize: 16
+    },
+
+    section:
+    {
+        // marginTop: 32
+    },
+    sectionTitle:
+    {
+        // fontSize: 20,
+        // fontWeight: 'bold',
+        // marginBottom: 16
+    },
+    bioText:
+    {
+        // fontSize: 16,
+        // lineHeight: 24
+    },
+
+    skillsWrapper:
+    {
+        // flexDirection: 'row',
+        // flexWrap: 'wrap',
+        // gap: 10
+    },
+    skillChip:
+    {
+        // paddingHorizontal: 16,
+        // paddingVertical: 10,
+        // borderRadius: 20
+    },
+    skillText:
+    {
+        // fontSize: 14,
+        // fontWeight: '500'
+    },
+
+    card:
+    {
+        // padding: 20,
+        // borderRadius: 16,
+        // marginBottom: 12,
+        // shadowColor: '#000',
+        // shadowOpacity: 0.06,
+        // shadowRadius: 8,
+        // shadowOffset: { width: 0, height: 4 },
+        // elevation: 3
+    },
+    cardTitle:
+    {
+        // fontSize: 18,
+        // fontWeight: 'bold'
+    },
+    cardTech:
+    {
+        // fontSize: 14,
+        // color: '#007AFF',
+        // marginTop: 6,
+        // marginBottom: 10,
+        // fontWeight: '600'
+    },
+    cardDesc: {
+        // fontSize: 15,
+        // lineHeight: 22
+    },
+
+});
+
+export default DeveloperDetailScreen;
