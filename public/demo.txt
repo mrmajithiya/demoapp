@@ -12,6 +12,7 @@ Add to Path      %ANDROID_HOME%\platform-tools
 Add to Path      %ANDROID_HOME%\emulator
 Add to Path      %ANDROID_HOME%\tools
 
+npm install react-native-screens react-native-safe-area-context
 ---------------------- node server.js -------------
 
 const express = require('express');
